@@ -4,12 +4,13 @@ resource "azurerm_virtual_machine" "tf-test" {
   resource_group_name   = var.resource_group_name
   network_interface_ids = var.network_interface_ids
   vm_size               = "Standard_B1s"
-  #tags                  = local.azure_tags
+  delete_os_disk_on_termination = true
+  tags                  = var.tags
 
   storage_image_reference {
     publisher = "MicrosoftWindowsServer"
     offer     = "WindowsServer"
-    sku       = "2019-Datacenter"
+    sku       = "2016-Datacenter"
     version   = "latest"
   }
 
@@ -32,25 +33,79 @@ resource "azurerm_virtual_machine" "tf-test" {
   }
 }
 
+resource "azurerm_log_analytics_workspace" "tf-test" {
+  name                = "tf-test-log-analytics-workspace"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+}
+
 resource "azurerm_virtual_machine_extension" "tf-test" {
-  name                 = "tf-test-diagnostics"
+  name                 = "MicrosoftMonitoringAgent"
+  virtual_machine_id   = azurerm_virtual_machine.tf-test.id
+  publisher            = "Microsoft.EnterpriseCloud.Monitoring"
+  type                 = "MicrosoftMonitoringAgent"
+  type_handler_version = "1.0"
+  auto_upgrade_minor_version = true
+
+  settings = jsonencode({
+    workspaceId = azurerm_log_analytics_workspace.tf-test.id
+  })
+}
+
+resource "azurerm_virtual_machine_extension" "tf-test2" {
+  name                 = "Microsoft.Insights.VMDiagnosticsSettings"
   virtual_machine_id   = azurerm_virtual_machine.tf-test.id
   publisher            = "Microsoft.Azure.Diagnostics"
   type                 = "IaaSDiagnostics"
   type_handler_version = "1.5"
+  auto_upgrade_minor_version = true
 
   settings = jsonencode({
-    "WadCfg": {
-      "DiagnosticMonitorConfiguration": {
-        "overallQuotaInMB": 4096,
-        "sinks": "application"
+    StorageAccount = var.storage_account_name
+    WadCfg = {
+      DiagnosticMonitorConfiguration = {
+        DiagnosticInfrastructureLogs = {
+          scheduledTransferLogLevelFilter = "Error"
+        }
+        Metrics = {
+          MetricAggregation = [
+            {
+              scheduledTransferPeriod = "PT1H"
+            },
+            {
+              scheduledTransferPeriod = "PT1M"
+            }
+          ]
+          resourceId = azurerm_virtual_machine.tf-test.id
+        }
+        PerformanceCounters = {
+          PerformanceCounterConfiguration = [
+            {
+              counterSpecifier = "\\Processor Information(_Total)\\% Processor Time"
+              sampleRate       = "PT60S"
+              unit             = "Percent"
+            }
+          ]
+          scheduledTransferPeriod = "PT1M"
+        }
+        WindowsEventLog = {
+          DataSource = [
+            {
+              name = "System!*[System[(Level = 1 or Level = 2 or Level = 3)]]"
+            }
+          ]
+          scheduledTransferPeriod = "PT1M"
+        }
+        overallQuotaInMB = 5120
       }
     }
   })
 
   protected_settings = jsonencode({
-    "storageAccountName": var.storage_account_name
-    "storageAccountKey": var.storage_account_primary_access_key
-    "storageAccountEndPoint": "https://core.windows.net/"
+    storageAccountName      = var.storage_account_name
+    storageAccountKey       = var.storage_account_primary_access_key
+    storageAccountEndPoint  = "https://core.windows.net/"
   })
 }

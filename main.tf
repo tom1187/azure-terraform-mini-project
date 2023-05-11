@@ -45,18 +45,17 @@ resource "azurerm_public_ip" "tf-test" {
 }
 
 module "vm_module" {
-  source = "./azure_vm_module"
-  vm_name                          = "tf-test-vm"
-  resource_group_name              = azurerm_resource_group.tf-test.name
-  location                         = azurerm_resource_group.tf-test.location
-  network_interface_ids            = [azurerm_network_interface.tf-test.id]
-  tags                             = local.azure_tags
-  storage_account_name             = azurerm_storage_account.tf-test.name
+  source                             = "./azure_vm_module"
+  vm_name                            = "tf-test-vm"
+  resource_group_name                = azurerm_resource_group.tf-test.name
+  location                           = azurerm_resource_group.tf-test.location
+  network_interface_ids              = [azurerm_network_interface.tf-test.id]
+  tags                               = local.azure_tags
+  storage_account_name               = azurerm_storage_account.tf-test.name
   storage_account_primary_access_key = azurerm_storage_account.tf-test.primary_access_key
-  admin_username                   = var.vm_admin_username
-  admin_password                   = var.vm_admin_password
+  admin_username                     = var.vm_admin_username
+  admin_password                     = var.vm_admin_password
 }
-
 
 resource "azurerm_storage_account" "tf-test" {
   name                     = "tfteststorageacc"
@@ -67,17 +66,3 @@ resource "azurerm_storage_account" "tf-test" {
 
   tags = local.azure_tags
 }
-
-# resource "azurerm_monitor_diagnostic_setting" "tf-test" {
-#   name               = "tftest-diagnistic-setting"
-#   target_resource_id = module.vm_module.virtual_machine_id
-#   storage_account_id = azurerm_storage_account.tf-test.id
-
-#   metric {
-#     category = "AllMetrics"
-
-#     retention_policy {
-#       enabled = false
-#     }
-#   }
-# }
